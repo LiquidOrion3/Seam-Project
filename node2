@@ -1,0 +1,99 @@
+package Main;
+
+
+public class node {
+
+	
+	/*
+	 * a node represents a pixel in a image but contains much more information and properties
+	 * 
+	 * the node has rgb information like the pixel but contains a value that represents the data 
+	 * around it, the node has an x,y 
+	 * 
+	 * nodes can be connected to show paths through the image 
+	 * 
+	 * 
+	 * 
+	 */
+
+private node node;
+private int number;
+int value=0;
+
+int color;
+int color_or;
+int x,y;
+
+boolean checked=false;
+
+public node(int x, int y){
+	this.x=x;
+	this.y=y;
+}
+public void setNode(node node){
+	this.node=node;
+}
+public void setNumber(int number){
+	this.number=number;
+}
+public void setWireColor(int color){
+	this.color=color;
+}
+public void setXY(int x, int y){
+	this.x=x;
+	this.y=y;
+}
+public void setChecked(){
+	checked=true;
+}
+public void setColorO(int color_or){
+	this.color_or=color_or;
+}
+public void setValue(int value){
+	this.value=value;
+}
+public node getNode(){
+	return node;
+}
+public int getNumber(){
+	return number;
+}
+public int getWireColor(){
+	return color;
+}
+public int getX(){
+	return x;
+}
+public int getY(){
+	return y;
+}
+public boolean isChecked(){
+	return checked;
+}
+public int getColorO(){
+	return color_or;
+}
+public int getValue(){
+	return value;
+}
+public String xy(){
+	return x+" "+y;
+}
+public void reset(){
+	node=null;
+	checked=false;
+}
+public node clone(){
+	
+	node temp= new node(x,y);
+	temp.setColorO(color_or);;
+	temp.setNumber(number);
+	temp.setValue(value);
+	temp.setWireColor(color);
+	return node;
+}
+	
+	
+	
+
+}
