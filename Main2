@@ -1,0 +1,836 @@
+package Main;
+
+import java.awt.Color;
+import java.awt.image.BufferedImage;
+import java.io.File;
+import java.io.IOException;
+import java.util.Scanner;
+
+import javax.imageio.ImageIO;
+import javax.swing.JFrame;
+
+public class Main2 extends JFrame {
+	/*
+	 * main operations classtakes in images and performs content aware image
+	 * reduction
+	 * 
+	 * the amount of images and size are variable
+	 */
+	private static final long serialVersionUID = 1L;
+
+	public static void main(String args[]) throws InterruptedException {
+		new Main2();
+	}
+
+	private File f; // saved image file
+
+	private node[][] nodes; // array of information for pixels
+
+	private node[][] oneImage;
+
+	private final int[][] kernel_Vertical = { { -1, 0, 1 }, { -2, 0, 2 },
+			{ -1, 0, 1 } };
+
+	private final int[][] kernel_Horizontal = { { -1, -2, -1 }, { 0, 0, 0 },
+			{ 1, 2, 1 } };
+
+	// the kernels determine the operation on surrounding pixels
+	// what is used here is the sobel operator to determine edges
+
+	private final double KERNEL_SUM = 5;// used in kernel multiplicaion
+
+	private int w = 0;// variable width of image
+	private int h = 0;// varibale height if image
+
+	private node head_Node;// lowest energy seam
+
+	int START_W; // starting width of image
+	int START_H; // starting height of image
+
+	private node[] ordered_Seams; // array of seams in an image ordered by
+
+	// energy
+
+	node thing;
+	node thing_top;
+
+	public Main2() {
+
+		// / copy all nodes to be removed onto one image
+
+		/*
+		 * source_Folder,start_File_Name, output_Folder,outout_File_Name,
+		 * seams_To_Remove, num_Of_Files, view_Seams
+		 */
+		Single_Static_Seam("file", "frame", "video5", "video", 10, 70, false);
+
+	}
+
+	public void Frame_By_Frame_Best(String source_Folder,
+			String start_File_Name, String output_Folder,
+			String outout_File_Name, int seams_To_Remove, int num_Of_Files,
+			boolean view_Seams) {
+
+		BufferedImage in; // current image looking at
+		BufferedImage out = null; // image to output
+		int in_Counter = 0; // which image file in source folder to open
+		int out_Counter = 0;// what to call output image file
+
+		int num_Seams_To_remove;// number of seams to remove
+		int max_Files = num_Of_Files; // number of files to remove in total
+
+		while (num_Of_Files > 0) {
+			System.out.println("files left" + num_Of_Files);
+			num_Seams_To_remove = seams_To_Remove;
+
+			try {
+				// System.out.println(source_file+"/"+start_name+incounter);
+				in = ImageIO.read(new File(source_Folder + "/"
+						+ start_File_Name + in_Counter + ".png")); // read image
+				// file
+				in_Counter++;
+				w = in.getWidth();// set w & h
+				h = in.getHeight();
+
+				if (num_Of_Files == max_Files) {
+					START_W = w;
+					START_H = h;
+				}
+				// System.out.println("file open");
+
+				populate(in); // populate the node matrix with pixel information
+
+				if (view_Seams == false) {// view seam removal in two parts
+					while (num_Seams_To_remove > 0) {
+
+						System.out.println("seams left " + num_Seams_To_remove);
+						reset();
+						create2(kernel_Vertical, kernel_Horizontal, KERNEL_SUM);
+						head_Node = getMin_V(nodes);
+						highlight_V(head_Node, nodes, 255);
+						out = produce(false, nodes);
+
+						f = new File(output_Folder + "/" + outout_File_Name
+								+ out_Counter + ".png");
+						out_Counter++;
+						ImageIO.write(out, "PNG", f);
+
+						remove_V(head_Node);
+						out = produce(false, nodes);
+
+						f = new File(output_Folder + "/" + outout_File_Name
+								+ out_Counter + ".png");
+						out_Counter++;
+						ImageIO.write(out, "PNG", f);
+						num_Seams_To_remove--;
+					}
+				} else {
+
+					while (num_Seams_To_remove > 0) {// view seam removal in one
+
+						reset();
+						create2(kernel_Vertical, kernel_Horizontal, KERNEL_SUM);
+						head_Node = getMin_V(nodes);
+						remove_V(head_Node);
+						out = produce(false, nodes);
+
+						f = new File(output_Folder + "/" + outout_File_Name
+								+ out_Counter + ".png");
+						num_Seams_To_remove--;
+					}
+					ImageIO.write(out, "PNG", f);
+					out_Counter++;
+				}
+
+				// System.out.println("image complete");
+
+			}
+
+			catch (IOException e) {
+				e.printStackTrace();
+			}
+
+			num_Of_Files--;
+		}
+		// System.out.println("folder complete");
+
+	}
+
+	node[] toRemove;
+
+	public void Single_Static_Seam(String source_Folder,
+			String start_File_Name, String output_Folder,
+			String outout_File_Name, int seams_To_Remove, int num_Of_Files,
+			boolean view_Seams) {
+
+		toRemove = new node[seams_To_Remove];
+		int coun = 0;
+
+		oneImage = new node[w][h];
+
+		BufferedImage in; // current image looking at
+		BufferedImage out = null; // image to output
+		int in_Counter = 0; // which image file in source folder to open
+		int out_Counter = 0;// what to call output image file
+
+		int num_Seams_To_remove;// number of seams to remove
+		int max_Files = num_Of_Files; // number of files to remove in total
+
+		while (num_Of_Files > 0) {
+			System.out.println("files left" + num_Of_Files);
+			num_Seams_To_remove = seams_To_Remove;
+
+			try {
+				// System.out.println(source_file+"/"+start_name+incounter);
+				in = ImageIO.read(new File(source_Folder + "/"
+						+ start_File_Name + in_Counter + ".png")); // read image
+				// file
+				in_Counter++;
+				w = in.getWidth();// set w & h
+				h = in.getHeight();
+
+				if (num_Of_Files == max_Files) {
+					START_W = w;
+					START_H = h;
+
+					// oneImage= new node[w][h];
+
+				}
+
+				populate(in); // populate the node matrix with pixel information
+
+				if (view_Seams == false) {// view seam removal in two parts
+
+					reset();
+					create2(kernel_Vertical, kernel_Horizontal, KERNEL_SUM);
+					if (num_Of_Files == max_Files) {
+						oneImage = nodes;
+
+					}
+
+					transfer();
+
+				}
+
+			}
+
+			catch (IOException e) {
+				e.printStackTrace();
+			}
+
+			num_Of_Files--;
+		}
+
+		for (int j = 0; j < seams_To_Remove; j++) {
+
+			toRemove[j] = getMin_V(oneImage);
+
+			// remove_V(getMin_V(oneImage));
+		}
+
+		node[][] firstset = new node[w][h];
+
+		for (int y = 0; y < h; y++) {
+			for (int x = 0; x < w; x++) {
+				firstset[x][y] = oneImage[x][y];
+			}
+
+		}
+		for (int j = 0; j < seams_To_Remove; j++) {
+
+			highlight_V(toRemove[j], firstset, Color.red.getRGB());
+
+			// remove_V(getMin_V(oneImage));
+		}
+
+		// thing_top=getMin_V(oneImage);
+		// highlight_V(thing_top,oneImage, Color.red.getRGB());
+		out = produce(true, oneImage);
+		System.out.println("done");
+		f = new File(output_Folder + "/" + "All" + ".png");
+		out_Counter++;
+		try {
+			ImageIO.write(out, "PNG", f);
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+
+		in_Counter = 1; // which image file in source folder to open
+		out_Counter = 0;// what to call output image file
+
+		num_Of_Files = max_Files;
+		while (num_Of_Files > 0) {
+			System.out.println("files left" + num_Of_Files);
+			num_Seams_To_remove = seams_To_Remove;
+
+			try {
+				// System.out.println(source_file+"/"+start_name+incounter);
+				in = ImageIO.read(new File(source_Folder + "/"
+						+ start_File_Name + in_Counter + ".png")); // read image
+				// file
+				in_Counter++;
+				w = in.getWidth();// set w & h
+				h = in.getHeight();
+
+				// System.out.println("file open");
+
+				populate(in); // populate the node matrix with pixel information
+
+				if (view_Seams == false) {// view seam removal in two parts
+					while (num_Seams_To_remove > 0) {
+						reset();
+						create2(kernel_Vertical, kernel_Horizontal, KERNEL_SUM);
+
+						highlight_V(toRemove[num_Seams_To_remove], nodes, 255);
+						out = produce(false, nodes);
+
+						f = new File(output_Folder + "/" + outout_File_Name
+								+ out_Counter + ".png");
+						out_Counter++;
+						ImageIO.write(out, "PNG", f);
+
+						remove_V(thing_top);
+						out = produce(false, nodes);
+						f = new File(output_Folder + "/" + outout_File_Name
+								+ out_Counter + ".png");
+						out_Counter++;
+						ImageIO.write(out, "PNG", f);
+						num_Seams_To_remove--;
+					}
+				} else {
+					// System.out.println("removing w/ one output");
+
+					// while (num_Seams_To_remove > 0) {// view seam removal in
+					// one
+					// // part
+					// // System.out.println("seams remaining"+temp_remove);
+					//
+					// reset();
+					// create2(kernel_Vertical, kernel_Horizontal, KERNEL_SUM);
+					// head_Node = getMin_V(nodes);
+					// if (num_Of_Files == max_Files) {
+					// here=head_Node;
+					// }
+					// // save();
+					// // highlight_V(head);
+					// remove_V(here);
+					// out=produce(false);
+					//
+					// f = new File(output_Folder + "/" + outout_File_Name
+					// + out_Counter + ".png");
+					// num_Seams_To_remove--;
+					// }
+					// ImageIO.write(out, "PNG", f);
+					// out_Counter++;
+				}
+
+				// System.out.println("image complete");
+
+			}
+
+			catch (IOException e) {
+				e.printStackTrace();
+			}
+
+			num_Of_Files--;
+		}
+
+		// System.out.println("folder complete");
+
+	}
+
+	/**
+	 * populate node matrix
+	 * 
+	 * @param in
+	 */
+	public void populate(BufferedImage in) {
+
+		nodes = new node[w][h]; // populate node matrix
+
+		for (int y = 0; y < h; y++) {
+			for (int x = 0; x < w; x++) {
+				nodes[x][y] = new node(x, y);
+				nodes[x][y].setColorO(in.getRGB(x, y));
+			}
+		}
+
+		// populate node matrix with pixel information;
+
+	}
+
+	public void create2(int[][] kernelx, int[][] kernely, double sum) {
+
+		/**
+		 * method creates new BufferedImage and nodes [w][h] each pixel in image
+		 * and node is set with color int information
+		 */
+
+		int tempx = 0; // coordinates for surrounding pixels
+		int tempy = 0;
+
+		for (int y = 0; y < h; y++) {
+			for (int x = 0; x < w; x++) {
+
+				// grid for rgb values of surrounding pixels
+				int[][] redgrid = new int[3][3];
+				int[][] bluegrid = new int[3][3];
+				int[][] greengrid = new int[3][3];
+
+				// center pixel
+				redgrid[1][1] = (nodes[x][y].getColorO() & 0x000000ff);
+				greengrid[1][1] = (nodes[x][y].getColorO() & 0x0000ff00) >> 8;
+				bluegrid[1][1] = (nodes[x][y].getColorO() & 0x00ff0000) >> 16;
+
+				// upper left
+				tempx = x - 1;
+				tempy = y - 1;
+				if ((tempx >= 0) & (tempy >= 0)) {
+					redgrid[0][0] = (nodes[tempx][tempy].getColorO() & 0x000000ff);
+					greengrid[0][0] = (nodes[tempx][tempy].getColorO() & 0x0000ff00) >> 8;
+					bluegrid[0][0] = (nodes[tempx][tempy].getColorO() & 0x00ff0000) >> 16;
+				} else {
+					redgrid[0][0] = 0;
+					greengrid[0][0] = 0;
+					bluegrid[0][0] = 0;
+				}
+
+				// upper center
+				tempx = x;
+				tempy = y - 1;
+				if ((tempy >= 0)) {
+					redgrid[1][0] = (nodes[tempx][tempy].getColorO() & 0x000000ff);
+					greengrid[1][0] = (nodes[tempx][tempy].getColorO() & 0x0000ff00) >> 8;
+					bluegrid[1][0] = (nodes[tempx][tempy].getColorO() & 0x00ff0000) >> 16;
+				} else {
+					redgrid[1][0] = 0;
+					greengrid[1][0] = 0;
+					bluegrid[1][0] = 0;
+				}
+
+				// upper right
+				tempx = x + 1;
+				tempy = y - 1;
+				if ((tempx < w) & (tempy >= 0)) {
+					redgrid[2][0] = (nodes[tempx][tempy].getColorO() & 0x000000ff);
+					greengrid[2][0] = (nodes[tempx][tempy].getColorO() & 0x0000ff00) >> 8;
+					bluegrid[2][0] = (nodes[tempx][tempy].getColorO() & 0x00ff0000) >> 16;
+				} else {
+					redgrid[2][0] = 0;
+					greengrid[2][0] = 0;
+					bluegrid[2][0] = 0;
+				}
+
+				// middle left
+				tempx = x - 1;
+				tempy = y;
+				if (tempx >= 0) {
+					redgrid[0][1] = (nodes[tempx][tempy].getColorO() & 0x000000ff);
+					greengrid[0][1] = (nodes[tempx][tempy].getColorO() & 0x0000ff00) >> 8;
+					bluegrid[0][1] = (nodes[tempx][tempy].getColorO() & 0x00ff0000) >> 16;
+				} else {
+					redgrid[0][1] = 0;
+					greengrid[0][1] = 0;
+				}
+
+				// middle right
+				tempx = x + 1;
+				tempy = y;
+				if (tempx < w) {
+					redgrid[2][1] = (nodes[tempx][tempy].getColorO() & 0x000000ff);
+					greengrid[2][1] = (nodes[tempx][tempy].getColorO() & 0x0000ff00) >> 8;
+					bluegrid[2][1] = (nodes[tempx][tempy].getColorO() & 0x00ff0000) >> 16;
+				} else {
+					redgrid[2][1] = 0;
+					greengrid[2][1] = 0;
+					bluegrid[2][1] = 0;
+				}
+
+				// lower left
+				tempx = x - 1;
+				tempy = y + 1;
+				if ((tempx >= 0) & (tempy < h)) {
+					redgrid[0][2] = (nodes[tempx][tempy].getColorO() & 0x000000ff);
+					greengrid[0][2] = (nodes[tempx][tempy].getColorO() & 0x0000ff00) >> 8;
+					bluegrid[0][2] = (nodes[tempx][tempy].getColorO() & 0x00ff0000) >> 16;
+				} else {
+					redgrid[0][2] = 0;
+					greengrid[0][2] = 0;
+					bluegrid[0][2] = 0;
+				}
+
+				// lower center
+				tempx = x;
+				tempy = y + 1;
+				if (tempy < h) {
+					redgrid[1][2] = (nodes[tempx][tempy].getColorO() & 0x000000ff);
+					greengrid[1][2] = (nodes[tempx][tempy].getColorO() & 0x0000ff00) >> 8;
+					bluegrid[1][2] = (nodes[tempx][tempy].getColorO() & 0x00ff0000) >> 16;
+				} else {
+					redgrid[1][2] = 0;
+					greengrid[1][2] = 0;
+					bluegrid[1][2] = 0;
+				}
+
+				// lower right
+				tempx = x + 1;
+				tempy = y + 1;
+				if ((tempx < w) & (tempy < h)) {
+					redgrid[2][2] = (nodes[tempx][tempy].getColorO() & 0x000000ff); // red
+					greengrid[2][2] = (nodes[tempx][tempy].getColorO() & 0x0000ff00) >> 8;
+					bluegrid[2][2] = (nodes[tempx][tempy].getColorO() & 0x00ff0000) >> 16;
+				} else {
+					redgrid[2][2] = 0;
+					greengrid[2][2] = 0;// (img.getRGB(x, y) & 0x0000ff00)>>8;
+					bluegrid[2][2] = 0;// (img.getRGB(x, y) & 0x00ff0000)>>16;
+				}
+
+				// totals for surrounding pixels in both directions
+				double xredtotal = 0;
+				double xgreentotal = 0;
+				double xbluetotal = 0;
+
+				double yredtotal = 0;
+				double ygreentotal = 0;
+				double ybluetotal = 0;
+
+				for (int j = 0; j < 3; j++) {
+					for (int i = 0; i < 3; i++) {
+
+						// multiply the rgb grids with corresponding matrix
+						xredtotal += ((redgrid[i][j] * kernelx[i][j]));
+						xgreentotal += ((greengrid[i][j] * kernelx[i][j]));
+						xbluetotal += ((bluegrid[i][j] * kernelx[i][j]));
+
+						yredtotal += ((redgrid[i][j] * kernely[i][j]));
+						ygreentotal += ((greengrid[i][j] * kernely[i][j]));
+						ybluetotal += ((bluegrid[i][j] * kernely[i][j]));
+
+					}
+
+				}
+				// divide totals by sum
+				xredtotal = xredtotal / sum;
+				xgreentotal = xgreentotal / sum;
+				xbluetotal = xbluetotal / sum;
+				yredtotal = yredtotal / sum;
+				ygreentotal = ygreentotal / sum;
+				ybluetotal = ybluetotal / sum;
+
+				// add together results in x and y
+				int redtotal = (int) Math.sqrt(yredtotal * yredtotal
+						+ xredtotal * xredtotal);
+				int greentotal = (int) Math.sqrt(ygreentotal * ygreentotal
+						+ xgreentotal * xgreentotal);
+				int bluetotal = (int) Math.sqrt(ybluetotal * ybluetotal
+						+ xbluetotal * xbluetotal);
+
+				// result pixel color is created from values
+				Color color = new Color(redtotal, greentotal, bluetotal);
+
+				int col = color.getRGB();
+
+				nodes[x][y].setNumber(col);
+
+				int val = 25;
+				if (col < new Color(val, val, val).getRGB())
+					nodes[x][y].setWireColor(Color.BLACK.getRGB());
+
+				else
+					nodes[x][y].setWireColor(Color.WHITE.getRGB());
+
+			}
+
+		}
+	}
+
+	public BufferedImage produce(Boolean edge, node[][] nodes) {
+
+		BufferedImage out = new BufferedImage(START_W, START_H, 5); // =output
+		// image
+		for (int y = 0; y < h; y++) {
+			for (int x = 0; x < w; x++) {
+				if (edge) {
+					out.setRGB(x, y, nodes[x][y].getWireColor());
+				} else {
+					out.setRGB(x, y, nodes[x][y].getColorO());
+				}
+			}
+		}
+		return out;
+
+	}
+
+	public void reset() {
+		for (int y = 0; y < h; y++) {
+			for (int x = 0; x < w; x++) {
+				nodes[x][y].reset();
+				;
+			}
+		}
+
+	}
+
+	// operations on vertical seams
+	public node getMin_V(node[][] nodes) {
+		node head = seams_V(nodes[0][0]);
+		int min = head.getNumber();
+
+		for (int x = 1; x < w; x++) {
+			node temp = seams_V(nodes[x][0]);
+			if (temp.getNumber() < min) {
+				head = temp;
+				min = temp.getNumber();
+			}
+		}
+		return head;
+	}
+
+	public void insert_and_sort(node[] top, int index, node in) {
+
+		// creates sorted node array of all seams
+
+		for (int i = 0; i <= index; i++) {
+			if (top[i] == null)
+				top[i] = in;
+			else if (top[i].getNumber() > in.getNumber()) {
+
+				for (int o = index; o > i; o--) {
+					top[o] = top[o - 1];
+				}
+				top[i] = in;
+				break;
+			}
+
+		}
+
+		//
+
+	}
+
+	private node seams_V(node node) {
+
+		int x = node.getX();
+		int y = node.getY();
+
+		int min;
+		int which = 0;
+
+		if (y == h - 1) {
+			node.setChecked();
+			return node;
+		} else {
+			int down = 0;
+			node d = nodes[x][y + 1];
+			if (d.isChecked() == false) {
+				d = seams_V(nodes[x][y + 1]);
+				down = d.getNumber();
+			} else {
+				down = d.getNumber();
+			}
+			min = down;
+
+			node l = null;
+			if (x > 0) {
+				int left;
+				l = nodes[x - 1][y + 1];
+				if (l.isChecked() == false) {
+					l = seams_V(nodes[x - 1][y + 1]);
+					left = l.getNumber();
+				} else {
+					left = l.getNumber();
+				}
+				if (left < min) {
+					min = left;
+					which = 1;
+				}
+			}
+
+			// int right=0;
+			node r = null;
+			if (x < w - 1) {
+				int right;
+				r = nodes[x + 1][y + 1];
+				if (r.isChecked() == false) {
+					r = seams_V(nodes[x + 1][y + 1]);
+					right = r.getNumber();
+				} else {
+					right = r.getNumber();
+				}
+				if (right < min) {
+					min = right;
+					which = 2;
+				}
+			}
+
+			int total = node.getNumber() + min;
+
+			node.setChecked();
+
+			if (which == 0)
+				node.setNode(d);
+			else if (which == 1)
+				node.setNode(l);
+			else
+				node.setNode(r);
+
+			node.setNumber(total);
+			return node;
+
+		}
+
+	}
+
+	public void remove_V(node troute) {
+		node route = troute;
+
+		w = w - 1;
+
+		// BufferedImage out = new BufferedImage(w, h, 5); // =output image
+		for (int y = 0; y < h; y++) {
+			int hole = route.getX();
+			for (int x = 0; x < w; x++) {
+				if (x < hole) {
+					// out.setRGB(x, y, in.getRGB(x, y));
+					// out.setRGB(x, y, nodes[x][y].getColor());
+
+				} else {
+					// out.setRGB(x, y, nodes[x+1][y].getColor());
+					// out.setRGB(x, y, in.getRGB(x, y));
+					nodes[x][y].setWireColor(nodes[x + 1][y].getWireColor());
+					nodes[x][y].setColorO(nodes[x + 1][y].getColorO());
+				}
+
+			}
+			route = route.getNode();
+		}
+
+		// return out;
+	}
+
+	public void highlight_V(node head, node[][] nodes, int color) {
+
+		// int color = 255;
+		node temp = head;
+
+		for (int y = 0; y < h; y++) {
+			// System.out.println(y+" "+temp.getX());
+			nodes[temp.getX()][y].setWireColor(color);
+			nodes[temp.getX()][y].setColorO(color);
+			temp = temp.getNode();
+		}
+
+	}
+
+	public void transfer() {
+
+		for (int y = 0; y < h; y++) {
+			for (int x = 0; x < w; x++) {
+				// System.out.println(oneImage[x][y].getWireColor()
+				// +" "+nodes[x][y].getWireColor() + " "
+				// +(oneImage[x][y].getWireColor()
+				// |nodes[x][y].getWireColor()));
+				oneImage[x][y]
+						.setWireColor((oneImage[x][y].getWireColor() | nodes[x][y]
+								.getWireColor()));
+				oneImage[x][y]
+						.setNumber((oneImage[x][y].getNumber() | nodes[x][y]
+								.getNumber()));
+
+			}
+		}
+
+	}
+
+	// //not used currently
+
+	public void addSeam_V(node head) {
+
+		w = w + 1;
+		node[][] neww = new node[w][h];
+
+		node temp = head;
+
+		int smallerx = 0;
+		int smallery = 0;
+		for (int y = 0; y < h; y++) {
+			int mark = temp.getX();
+			smallerx = 0;
+			for (int x = 0; x < w; x++) {
+				if ((x <= mark) | (x > mark + 1)) {
+					neww[x][y] = nodes[smallerx][smallery];
+					smallerx++;
+				} else if (x == mark + 1) {
+
+					// neww[x][y]=surround(x, y);
+					neww[x][y] = nodes[smallerx][smallery];
+
+				}
+			}
+			temp = temp.getNode();
+			smallery++;
+		}
+
+		nodes = neww;
+	}
+
+	/**
+	 * compares two seams for closeness
+	 * 
+	 * @param one
+	 * @param two
+	 * @return
+	 */
+	public int compareNodes(node one, node two) {
+		int total = 0;
+		for (int i = 0; i < h; i++) {
+			total += Math.abs(one.getNumber() - two.getNumber());
+			one = one.getNode();
+			two = two.getNode();
+		}
+		return total;
+
+	}
+
+	public node match_seams(node match) {
+		// within nodes matrix connections are made to match parameter seam
+		node temp = match;
+		int x = match.getX();
+		int y = match.getY();
+		node t = nodes[x][y];
+		node top = t;
+		node p;
+
+		while (temp != null) {
+			int Nx = temp.getX();
+			int Ny = temp.getY();
+			p = nodes[Nx][Ny];
+			t.setNode(p);
+			t = p;
+			temp = temp.getNode();
+
+		}
+		return top;
+	}
+
+	public node get_Seams_Ordered(int value) {
+		ordered_Seams = new node[w]; // new
+		for (int x = 1; x < w; x++) {
+			node temp = seams_V(nodes[x][0]);
+			insert_and_sort(ordered_Seams, x, temp); // new
+		}
+
+		return ordered_Seams[value];
+	}
+
+	public void highlight_several(int max) {
+
+		// int max=w/3;
+		for (int i = 0; i < max; i++) {
+			highlight_V(ordered_Seams[i], nodes, 255);
+		}
+		highlight_V(ordered_Seams[0], nodes, 0);
+
+	}
+
+}
